@@ -1,0 +1,656 @@
+Код:
+App.xaml:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<Application xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="BakeryApp.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Определение цветового ресурса colorAccent -->
+            <Color x:Key="colorAccent">#008000</Color>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+
+App.xaml.cs:
+
+using System;
+using Xamarin.Forms.Xaml;
+using Xamarin.Forms;
+
+namespace BakeryApp
+{
+    public partial class App : Application
+    {
+        public App()
+        {
+            InitializeComponent();
+            // Задаем MainPage первой страницей приложения
+
+            MainPage = new NavigationPage(new MainPage());
+
+            if (Device.RuntimePlatform == Device.Android)
+            {
+                MainPage.SetValue(NavigationPage.BarBackgroundColorProperty, Color.Sienna); // Задаем цвет фона заголовка для Android 
+            }
+        }
+
+    }
+}
+
+
+
+AssemblyInfo.cs:
+
+using Xamarin.Forms.Xaml;
+
+[assembly: XamlCompilation(XamlCompilationOptions.Compile)]
+
+CartPage.xaml:
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="BakeryApp.CartPage"
+             Title="Корзина"// Прописываем наименование заголовка страницы
+             BackgroundColor="BlanchedAlmond"> // Задаем цвет фона
+
+    <ContentPage.Content>
+        <StackLayout Padding="10" Spacing="10">
+            <ListView x:Name="cartListView" ItemsSource="{Binding CartItems}">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <ViewCell>
+                            <!-- Stepper для изменения количества товаров в корзине -->
+                            <StackLayout Orientation="Horizontal">
+                                <Label Text="{Binding Product.Name}" />
+                                <Button Text="-" Clicked="RemoveFromCartClicked"  />
+                                <Label Text="{Binding Quantity}" />
+                                <Button Text="+" Clicked="AddToCartClicked" />
+                            </StackLayout>
+                        </ViewCell>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <!-- Подсчет итоговой суммы -->
+            <Label Text="Итого к оплате:" FontSize="18" />
+            <Label x:Name="totalAmountLabel" FontSize="16" TextColor="Green" />
+            <Button Text="Ввести данные для доставки" Clicked="GoToCheckoutClicked" BackgroundColor="Peru" />
+        </StackLayout>
+    </ContentPage.Content>
+
+</ContentPage>
+
+
+CartPage.xaml.cs:
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Xamarin.Forms;
+using static BakeryApp.MenuPage;
+
+namespace BakeryApp
+{
+    public partial class CartPage : ContentPage
+    {
+        private ListView _cartListView; // Объявляем переменную для ListView
+
+        public List<ShoppingCartItem> CartItems { get; set; }
+
+        public CartPage(List<ShoppingCartItem> cartItems)
+        {
+            InitializeComponent();
+            CartItems = cartItems;
+            BindingContext = this;
+
+            decimal totalAmount = CalculateTotalAmount();
+            totalAmountLabel.Text = $"Общая сумма к оплате: {totalAmount} руб";
+
+            // Найдем ListView по его имени после инициализации компонентов
+            _cartListView = this.FindByName<ListView>("cartListView");
+        }
+        private decimal CalculateTotalAmount() // Функция подсчета общей стоимости
+        {
+            decimal totalAmount = 0;
+            foreach (var item in CartItems)
+            {
+                totalAmount += item.Product.Price * item.Quantity;
+            }
+            return totalAmount;
+        }
+        private void RemoveFromCartClicked(object sender, EventArgs e)
+        {
+            Button button = (Button)sender;
+            var item = (ShoppingCartItem)button.BindingContext;
+
+            if (item != null)
+            {
+                if (item.Quantity > 1)
+                {
+                    item.Quantity--;
+                }
+                else
+                {
+                    CartItems.Remove(item);
+                }
+            }
+
+            RefreshCartUI();
+        }
+
+        private void AddToCartClicked(object sender, EventArgs e)
+        {
+            Button button = (Button)sender;
+            var item = (ShoppingCartItem)button.BindingContext;
+
+            if (item != null)
+            {
+                item.Quantity++;
+            }
+            else
+            {
+                // Добавление нового продукта в корзину
+            }
+
+            RefreshCartUI();
+        }
+
+        private void RefreshCartUI()
+        {
+            // Обновляем UI корзины через обновление источника данных
+            _cartListView.ItemsSource = null;
+            _cartListView.ItemsSource = CartItems;
+
+            // Посчитать общую сумму
+            decimal totalAmount = 0;
+            foreach (var item in CartItems)
+            {
+                totalAmount += item.Product.Price * item.Quantity;
+            }
+
+            // Текст метки для отображения общей суммы
+            totalAmountLabel.Text = $"Общая сумма: {totalAmount} руб";
+        }
+        private async void GoToCheckoutClicked(object sender, EventArgs e)
+        {
+            // Код для перехода на страницу оформления заказа (CheckoutPage)
+            await Navigation.PushAsync(new CheckoutPage());
+        }
+
+    }
+}
+
+
+
+CheckoutPage.xaml:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="BakeryApp.CheckoutPage"
+             Title="Данные для доставки"
+             BackgroundColor="BlanchedAlmond">
+
+    <ContentPage.Content>
+        <!-- Поля ввода информации для доставки -->
+        <StackLayout Padding="10" Spacing="10">
+            <Entry Placeholder="Имя" />
+            <Entry Placeholder="Контактная информация" />
+            <Entry Placeholder="Адрес доставки" />
+
+            <Button Text="Подтвердить заказ" Clicked="PlaceOrderClicked" BackgroundColor="Peru" /> // Добавление кнопки подтвердить заказ
+        </StackLayout>
+    </ContentPage.Content>
+
+</ContentPage>
+
+
+CheckoutPage.xaml.cs:
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Xamarin.Forms;
+
+namespace BakeryApp
+{
+    public partial class CheckoutPage : ContentPage
+    {
+        public CheckoutPage()
+        {
+            InitializeComponent();
+        }
+
+        private void PlaceOrderClicked(object sender, EventArgs e)
+        {
+            // Вывод сообщения об оформлении заказа
+            DisplayAlert("Успешно", "Ваш заказ оформлен. Ожидайте достваки. Оплата наличными при получении.", "OK");
+        }
+    }
+}
+
+
+MainPage.xaml:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="BakeryApp.MainPage"
+             Title="Пекарня Про"
+             BackgroundColor="BlanchedAlmond">
+
+    <ContentPage.Content>
+        
+        <!-- Размещение логотипа и других элементов интерфейса по центру -->
+        <StackLayout VerticalOptions="CenterAndExpand" HorizontalOptions="CenterAndExpand">
+            <Image Source="logo.png" WidthRequest="200" HeightRequest="200" />
+            <Label Text="Добро пожаловать в Пекарню Про!" FontSize="24" HorizontalOptions="CenterAndExpand" />
+            <Button Text="Перейти к меню" Clicked="GoToMenuClicked" BackgroundColor="Peru" HorizontalOptions="CenterAndExpand" /> // Добавление кнопки для перехода в меню
+        </StackLayout>
+    </ContentPage.Content>
+
+</ContentPage>
+
+
+MainPage.xaml.cs:
+
+using System;
+using Xamarin.Forms;
+
+namespace BakeryApp
+{
+    public partial class MainPage : ContentPage
+    {
+        public MainPage()
+        {
+            InitializeComponent();
+        }
+
+        private async void GoToMenuClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new MenuPage()); // Переход на страницу с меню
+        }
+    }
+}
+
+
+
+
+MenuPage.xaml:
+
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="BakeryApp.MenuPage"
+             Title="Меню"
+             BackgroundColor="BlanchedAlmond">
+
+    <ContentPage.Content>
+        <ScrollView>
+            <StackLayout Padding="10" Spacing="10">
+
+                <!-- Блок для продукта 1 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="pirog.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Пирог с ягодами" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Сочный пирог со свежими ягодами" FontSize="14" />
+                            <Label Text="Цена: 300 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+
+                <!-- Продукт 2 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Image Source="Pirozhnoe.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Пирожное" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Нежное пирожное с кремом" FontSize="14" />
+                            <Label Text="Цена: 250 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <!-- Продукт 3 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="ponchik.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Пончик" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Ароматный пончик с начинкой" FontSize="14" />
+                            <Label Text="Цена: 80 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <!-- Продукт 4 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="Bulochka.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Булочка" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Сдобная булочка с корицей" FontSize="14" />
+                            <Label Text="Цена: 120 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <!-- Продукт 5 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="Kruassan.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Круассан" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Хрустящий круассан с начинкой" FontSize="14" />
+                            <Label Text="Цена: 190 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <!-- Продукт 6 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="Brauni.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Брауни" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Шоколадный брауни с орехами" FontSize="14" />
+                            <Label Text="Цена: 220 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <!-- Продукт 7 -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Изображение продукта -->
+                        <Image Source="cheesecake.png" WidthRequest="100" HeightRequest="100" />
+
+                        <!-- Информация о продукте -->
+                        <StackLayout Grid.Column="1" Margin="10,0,0,0">
+                            <Label Text="Чизкейк" FontAttributes="Bold" FontSize="18" />
+                            <Label Text="Нежный чизкейк с ягодами" FontSize="14" />
+                            <Label Text="Цена: 280 руб" FontSize="16" TextColor="{StaticResource colorAccent}" />
+
+                            <!-- Кнопка "Добавить в корзину" -->
+                            <Button Text="Добавить в корзину" Clicked="AddToCartClicked" BackgroundColor="BurlyWood" />
+                        </StackLayout>
+                    </Grid>
+                </Frame>
+                <Button Text="Перейти в корзину" Clicked="GoToCartClicked" BackgroundColor="Peru" />
+            </StackLayout>
+        </ScrollView>
+    </ContentPage.Content>
+
+</ContentPage>
+
+
+MenuPage.xaml.cs:
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Xamarin.Forms;
+
+namespace BakeryApp
+{
+    public partial class MenuPage : ContentPage
+    {
+        public MenuPage()
+        {
+            InitializeComponent();
+        }
+        // Класс для представления продукта
+        public class Product
+        {
+            public string Name { get; set; }
+            public decimal Price { get; set; }
+        }
+
+        // Класс для представления продуктов в корзине
+        public class ShoppingCartItem
+        {
+            public Product Product { get; set; }
+            public int Quantity { get; set; }
+        }
+        private decimal SetProductPrice(string productName)
+        {
+            switch (productName)
+            {
+                case "Пирог с ягодами":
+                    return 300m; // Цена для пирога с ягодами - 300 рублей
+                case "Пирожное":
+                    return 250m; // Цена для пирожного - 250 рублей
+                case "Пончик":
+                    return 80m; // Цена для пончика - 80 рублей
+                case "Булочка":
+                    return 120m;
+                case "Круассан":
+                    return 190m;
+                case "Брауни":
+                    return 220m;
+                case "Чизкейк":
+                    return 280m;
+                default:
+                    return 0m; // Если продукт не найден, вернуть нулевую цену или обработать ошибку
+            }
+        }
+
+
+        // В классе MenuPage создаем список для хранения выбранных продуктов
+        private List<ShoppingCartItem> cartItems = new List<ShoppingCartItem>();
+
+        // Обработчик события нажатия кнопки "Добавить в корзину"
+        private void AddToCartClicked(object sender, EventArgs e)
+        {
+            Button button = (Button)sender;
+            StackLayout stackLayout = (StackLayout)button.Parent;
+
+            // Получение информации о продукте из элементов UI
+            string productName = ((Label)stackLayout.Children[0]).Text; // Получаем название продукта
+
+            // Создание объекта продукта на основе имени продукта
+            Product selectedProduct = new Product { Name = productName, Price = SetProductPrice(productName) }; // Установка цены продукта
+
+            ShoppingCartItem existingItem = cartItems.FirstOrDefault(item => item.Product.Name == selectedProduct.Name);
+
+            if (existingItem != null)
+            {
+                existingItem.Quantity++;
+            }
+            else
+            {
+                cartItems.Add(new ShoppingCartItem { Product = selectedProduct, Quantity = 1 });
+            }
+
+            UpdateCartUI();
+        }
+
+        private void UpdateCartUI()
+        {
+            // Очистка текущего содержимого корзины на UI
+
+            // Добавление всех элементов корзины на UI
+            decimal totalAmount = 0; // Общая сумма заказа
+
+            foreach (var item in cartItems)
+            {
+                // Создание элементов для отображения информации о продукте (название, количество, цена и т.д.)
+                // Добавление элементов на UI
+
+                totalAmount += item.Product.Price * item.Quantity; // Подсчет общей суммы за каждый продукт и его количество
+            }
+        }
+
+        private async void GoToCartClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new CartPage(cartItems)); // Передача списка выбранных продуктов в корзину
+        }
+
+    }
+}
+
+
+
+Функции на альтернативном языке (с++):
+1.	Функция подсчета стоимости:
+С#:
+
+            decimal totalAmount = CalculateTotalAmount();
+            totalAmountLabel.Text = $"Общая сумма к оплате: {totalAmount} руб";
+
+            // Найдем ListView по его имени после инициализации компонентов
+            _cartListView = this.FindByName<ListView>("cartListView");
+        }
+        private decimal CalculateTotalAmount() // Функция подсчета общей стоимости
+        {
+            decimal totalAmount = 0;
+            foreach (var item in CartItems)
+            {
+                totalAmount += item.Product.Price * item.Quantity;
+            }
+            return totalAmount;
+        }
+
+
+C++:
+#include <iostream>
+#include <vector>
+
+class ShoppingCart {
+private:
+    std::vector<CartItem> CartItems;
+
+        // Подсчет итоговой стоимости
+
+public:
+    decimal CalculateTotalAmount() {
+        decimal totalAmount = 0;
+        for (const auto& item : CartItems) {
+            totalAmount += item.product.Price * item.Quantity;
+        }
+        return totalAmount;
+    }
+}; 
+
+2.	Функция вывода сообщения об оформлении заказа:
+С#:
+public CheckoutPage()
+        {
+            InitializeComponent();
+        }
+
+        private void PlaceOrderClicked(object sender, EventArgs e)
+        {
+            // Вывод сообщения об оформлении заказа
+            DisplayAlert("Успешно", "Ваш заказ оформлен. Ожидайте достваки. Оплата наличными при получении.", "OK");
+        }
+
+C++:
+#include <iostream>
+
+    void PlaceOrderClicked() {
+        // Вывод сообщения об оформлении заказа
+        DisplayAlert("Успешно", "Ваш заказ оформлен. Ожидайте доставки. Оплата наличными при получении.", "OK");
+    }
+
+private:
+    void InitializeComponent() {
+        
+    }
+
+    void DisplayAlert(const std::string& title, const std::string& message, const std::string& button) {
+        // Логика вывода сообщения об оформлении заказа
+        std::cout << "Title: " << title << "\nMessage: " << message << "\nButton: " << button << std::endl;
+    }
+};
+
+3.	Функция перехода на другую страницу через кнопку:
+С#:
+
+private async void GoToMenuClicked(object sender, EventArgs e)
+        {
+            await Navigation.PushAsync(new MenuPage()); // Переход на страницу с меню
+        }
+
+С++:
+
+#include <iostream>
+#include <thread>
+
+private:
+    void NavigateToMenu() {
+        // Переход на страницу с меню
+        std::cout << "Navigating to MenuPage..." << std::endl;
+    }
+};
+
+
